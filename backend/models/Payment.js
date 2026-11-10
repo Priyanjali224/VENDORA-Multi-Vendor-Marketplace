@@ -21,7 +21,7 @@ const paymentSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['razorpay', 'stripe', 'cod'],
+    enum: ['razorpay', 'stripe', 'cod', 'simulated_sandbox'],
     required: true,
   },
   providerOrderId: {

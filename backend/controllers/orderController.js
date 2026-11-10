@@ -214,15 +214,22 @@ exports.verifyPayment = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Order not found.' });
     }
 
-    const isValid = paymentService.verifySignature({
+    const verification = paymentService.verifySignature({
       orderId: providerOrderId,
       paymentId: providerPaymentId,
       signature: providerSignature,
     });
 
-    if (!isValid) {
-      return res.status(400).json({ success: false, message: 'Payment verification failed. Invalid signature.' });
+    if (!verification.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: verification.message || 'Payment verification failed. Invalid signature.'
+      });
     }
+
+    const recordedProvider = verification.isSimulated
+      ? 'simulated_sandbox'
+      : (order.paymentMethod || 'razorpay');
 
     // Record payment ledger
     await paymentService.recordPayment({
@@ -230,7 +237,7 @@ exports.verifyPayment = async (req, res, next) => {
       customerId: req.user._id,
       amount: order.totalAmount,
       currency: 'INR',
-      provider: order.paymentMethod || 'razorpay',
+      provider: recordedProvider,
       providerOrderId,
       providerPaymentId,
       providerSignature,
@@ -243,7 +250,9 @@ exports.verifyPayment = async (req, res, next) => {
     order.trackingHistory.push({
       status: 'CONFIRMED',
       timestamp: new Date(),
-      note: `Payment verified. Transaction ID: ${providerPaymentId}`,
+      note: verification.isSimulated
+        ? `Simulated test payment captured. Sandbox ID: ${providerPaymentId}`
+        : `Verified Razorpay payment captured. Transaction ID: ${providerPaymentId}`,
     });
 
     await order.save();

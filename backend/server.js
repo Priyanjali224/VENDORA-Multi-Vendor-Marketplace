@@ -85,16 +85,25 @@ if (process.env.NODE_ENV === 'development') {
 // Serve uploaded static files (local disk adapter)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Health check handler (returns status without exposing secrets or connection strings)
+// Health check handler - strictly evaluates mongoose.connection.readyState
 const getHealthStatus = (req, res) => {
-  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  const isHealthy = dbStatus === 'connected';
+  const readyState = mongoose.connection.readyState;
+  const states = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
+  };
+  const dbStatus = states[readyState] || 'disconnected';
+  const isHealthy = readyState === 1;
 
+  // Return HTTP 200 when connected, HTTP 503 Service Unavailable when DB is down
   res.status(isHealthy ? 200 : 503).json({
     status: isHealthy ? 'healthy' : 'degraded',
     service: 'VENDORA Multi-Vendor Marketplace API',
     environment: process.env.NODE_ENV || 'development',
     database: dbStatus,
+    databaseReadyState: readyState,
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime())
   });
