@@ -40,7 +40,7 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow non-browser requests (e.g. mobile apps, curl, postman)
+    // Allow non-browser requests (e.g. mobile apps, curl, postman, health probes)
     if (!origin) return callback(null, true);
 
     // Allow explicitly defined origins
@@ -85,8 +85,8 @@ if (process.env.NODE_ENV === 'development') {
 // Serve uploaded static files (local disk adapter)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Production Health check endpoint
-app.get('/api/health', (req, res) => {
+// Health check handler (returns status without exposing secrets or connection strings)
+const getHealthStatus = (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   const isHealthy = dbStatus === 'connected';
 
@@ -98,7 +98,11 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime())
   });
-});
+};
+
+// Both root /health and /api/health supported
+app.get('/health', getHealthStatus);
+app.get('/api/health', getHealthStatus);
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -128,7 +132,7 @@ const startServer = async () => {
 
   server = app.listen(PORT, HOST, () => {
     console.log(`🚀 VENDORA REST API Server running in ${process.env.NODE_ENV || 'development'} mode on ${HOST}:${PORT}`);
-    console.log(`🌐 Health Check: http://${HOST}:${PORT}/api/health`);
+    console.log(`🌐 Health Check: http://${HOST}:${PORT}/health`);
   });
 };
 

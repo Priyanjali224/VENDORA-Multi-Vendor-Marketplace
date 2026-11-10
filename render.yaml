@@ -4,10 +4,10 @@ services:
     runtime: node
     rootDir: backend
     plan: free
-    region: oregon
+    region: singapore
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
@@ -28,6 +28,6 @@ services:
       - key: PAYMENT_GATEWAY
         value: razorpay
       - key: RAZORPAY_KEY_ID
-        value: rzp_test_vendoraDemoKey123
+        sync: false
       - key: RAZORPAY_KEY_SECRET
-        value: rzp_test_vendoraSecretKey456
+        sync: false

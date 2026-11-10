@@ -23,6 +23,7 @@ const connectDB = async () => {
     }
 
     const conn = await mongoose.connect(uri, {
+      dbName: 'vendora',
       autoIndex: true,
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 10000,

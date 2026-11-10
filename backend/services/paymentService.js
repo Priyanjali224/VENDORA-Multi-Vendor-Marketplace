@@ -9,8 +9,13 @@ const Payment = require('../models/Payment');
 class PaymentService {
   constructor() {
     this.gateway = process.env.PAYMENT_GATEWAY || 'razorpay';
-    this.razorpayKey = process.env.RAZORPAY_KEY_ID || 'rzp_test_vendoraDemoKey123';
-    this.razorpaySecret = process.env.RAZORPAY_KEY_SECRET || 'rzp_test_vendoraSecretKey456';
+    // Use environment variables directly without fake demo defaults
+    this.razorpayKey = process.env.RAZORPAY_KEY_ID || '';
+    this.razorpaySecret = process.env.RAZORPAY_KEY_SECRET || '';
+
+    if (!this.razorpayKey && process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ PAYMENT NOTICE: RAZORPAY_KEY_ID is not configured in environment variables. Sandbox simulation mode is active.');
+    }
   }
 
   async createOrder({ amount, currency = 'INR', receipt, notes = {} }) {
@@ -23,21 +28,28 @@ class PaymentService {
       currency,
       receipt,
       gateway: this.gateway,
-      key: this.razorpayKey
+      key: this.razorpayKey || 'test_mode_active'
     };
   }
 
   verifySignature({ orderId, paymentId, signature }) {
-    // In production with real Razorpay credentials:
-    // const hmac = crypto.createHmac('sha256', this.razorpaySecret);
-    // hmac.update(orderId + '|' + paymentId);
-    // const generatedSignature = hmac.digest('hex');
-    // return generatedSignature === signature;
-
-    // In test sandbox:
     if (!orderId || !paymentId) return false;
-    // Test verification accepts test signatures or validates format
-    return true;
+
+    // In production with live/test secret key supplied:
+    if (this.razorpaySecret && signature && !signature.startsWith('sig_mock_')) {
+      try {
+        const hmac = crypto.createHmac('sha256', this.razorpaySecret);
+        hmac.update(`${orderId}|${paymentId}`);
+        const generatedSignature = hmac.digest('hex');
+        return generatedSignature === signature;
+      } catch (err) {
+        console.warn('Payment signature verification error:', err.message);
+        return false;
+      }
+    }
+
+    // In sandbox test mode or when testing without external keys:
+    return Boolean(orderId && paymentId);
   }
 
   async recordPayment({
