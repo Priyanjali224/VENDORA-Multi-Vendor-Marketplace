@@ -44,22 +44,21 @@ const MyOrdersPage = () => {
     }
   };
 
-  const handleDownloadInvoice = (orderId, orderNumber) => {
-    const token = localStorage.getItem('vendora_token');
-    fetch(`/api/orders/${orderId}/invoice`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.blob())
-      .then((blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Invoice-${orderNumber}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      })
-      .catch((err) => console.error(err));
+  const handleDownloadInvoice = async (orderId, orderNumber) => {
+    try {
+      const response = await API.get(`/orders/${orderId}/invoice`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoice-${orderNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      console.error('Failed to download invoice:', err);
+    }
   };
 
   if (loading) {

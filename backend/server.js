@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 const { connectDB } = require('./config/db');
@@ -21,32 +22,50 @@ const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
+// Required behind Render / Cloud load balancers for rate limiting and HTTPS header detection
+app.set('trust proxy', 1);
+
 // Security Headers with Helmet
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS Configuration
+// Robust Production CORS Configuration
 const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:5173',
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173'
-];
+].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS policy'));
+    // Allow non-browser requests (e.g. mobile apps, curl, postman)
+    if (!origin) return callback(null, true);
+
+    // Allow explicitly defined origins
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
     }
+
+    // Allow all Vercel deployment and preview subdomains (e.g. https://vendora-*.vercel.app)
+    if (/^https:\/\/.*\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    // Allow all local dev
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`Origin ${origin} not allowed by CORS policy.`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Rate Limiting (1000 requests per 15 min window)
+// Rate Limiting (1,000 requests per 15 min window)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 1000,
@@ -63,16 +82,21 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Serve uploaded static files
+// Serve uploaded static files (local disk adapter)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Health check endpoint
+// Production Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  const isHealthy = dbStatus === 'connected';
+
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'healthy' : 'degraded',
     service: 'VENDORA Multi-Vendor Marketplace API',
-    version: '1.0.0',
-    timestamp: new Date().toISOString()
+    environment: process.env.NODE_ENV || 'development',
+    database: dbStatus,
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime())
   });
 });
 
@@ -89,7 +113,8 @@ app.use('/api/admin', adminRoutes);
 // Centralized Error Handling Middleware
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
+const HOST = '0.0.0.0';
 
 let server;
 
@@ -101,9 +126,9 @@ const startServer = async () => {
   const seeder = require('./utils/seeder');
   await seeder.seedDataIfEmpty();
 
-  server = app.listen(PORT, () => {
-    console.log(`🚀 VENDORA REST API Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-    console.log(`🌐 Base URL: http://localhost:${PORT}`);
+  server = app.listen(PORT, HOST, () => {
+    console.log(`🚀 VENDORA REST API Server running in ${process.env.NODE_ENV || 'development'} mode on ${HOST}:${PORT}`);
+    console.log(`🌐 Health Check: http://${HOST}:${PORT}/api/health`);
   });
 };
 

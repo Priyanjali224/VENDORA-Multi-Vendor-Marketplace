@@ -25,24 +25,21 @@ const PaymentResultPage = () => {
     fetchOrder();
   }, [orderId]);
 
-  const handleDownloadInvoice = () => {
-    const token = localStorage.getItem('vendora_token');
-    const invoiceUrl = `/api/orders/${orderId}/invoice`;
-    // Trigger download
-    fetch(invoiceUrl, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.blob())
-      .then((blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Invoice-${order?.orderNumber || orderId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      })
-      .catch((err) => console.error('Failed to download invoice:', err));
+  const handleDownloadInvoice = async () => {
+    try {
+      const response = await API.get(`/orders/${orderId}/invoice`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoice-${order?.orderNumber || orderId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      console.error('Failed to download invoice:', err);
+    }
   };
 
   if (loading) {
