@@ -99,6 +99,14 @@ const connectDB = async () => {
       console.error('\n🔒 MongoDB Atlas Auth Error: Authentication database mismatch resolved by setting authSource=admin.\n');
     }
 
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🔄 Will retry MongoDB Atlas connection in 15 seconds...');
+      setTimeout(() => {
+        connectDB().catch(() => {});
+      }, 15000);
+      return null;
+    }
+
     process.exit(1);
   }
 };

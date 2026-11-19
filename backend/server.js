@@ -191,16 +191,20 @@ let server;
 
 // Database connection & Server initialization
 const startServer = async () => {
-  await connectDB();
-
-  // Run seeder automatically if in memory or first run
-  const seeder = require('./utils/seeder');
-  await seeder.seedDataIfEmpty();
-
   server = app.listen(PORT, HOST, () => {
     console.log(`🚀 VENDORA REST API Server running in ${process.env.NODE_ENV || 'development'} mode on ${HOST}:${PORT}`);
     console.log(`🌐 Health Check: http://${HOST}:${PORT}/health`);
   });
+
+  try {
+    await connectDB();
+
+    // Run seeder automatically if in memory or first run
+    const seeder = require('./utils/seeder');
+    await seeder.seedDataIfEmpty();
+  } catch (err) {
+    console.warn('Initial DB connection attempt deferred:', err.message);
+  }
 };
 
 if (require.main === module) {
