@@ -1,11 +1,10 @@
 services:
   - type: web
-    name: vendora-backend
+    name: vendora
     runtime: node
-    rootDir: backend
     plan: free
     region: singapore
-    buildCommand: npm install
+    buildCommand: npm run build
     startCommand: npm start
     healthCheckPath: /health
     envVars:
@@ -14,8 +13,6 @@ services:
       - key: PORT
         value: 10000
       - key: MONGODB_URI
-        sync: false
-      - key: CLIENT_URL
         sync: false
       - key: JWT_SECRET
         generateValue: true
