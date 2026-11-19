@@ -4,6 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
+    rootDir: .
     buildCommand: npm run build
     startCommand: npm start
     healthCheckPath: /health
@@ -14,14 +15,14 @@ services:
         value: 10000
       - key: MONGODB_URI
         sync: false
+      - key: STORAGE_DRIVER
+        value: gridfs
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: DEFAULT_COMMISSION_PERCENTAGE
         value: 10
-      - key: STORAGE_DRIVER
-        value: local
       - key: PAYMENT_GATEWAY
         value: razorpay
       - key: RAZORPAY_KEY_ID

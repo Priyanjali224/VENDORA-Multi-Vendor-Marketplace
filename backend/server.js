@@ -50,6 +50,11 @@ app.use(cors({
       return callback(null, true);
     }
 
+    // Allow all Render deployment subdomains (e.g. https://*.onrender.com)
+    if (/^https:\/\/.*\.onrender\.com$/.test(origin)) {
+      return callback(null, true);
+    }
+
     // Allow all Vercel deployment and preview subdomains (e.g. https://vendora-*.vercel.app)
     if (/^https:\/\/.*\.vercel\.app$/.test(origin)) {
       return callback(null, true);
@@ -84,11 +89,44 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Serve uploaded static files (local disk or persistent disk mount)
+// Serve uploaded static files: MongoDB GridFS (₹0 persistent cloud storage) + local disk fallback
 const uploadsDir = process.env.PERSISTENT_DISK_PATH || path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+app.get('/uploads/:filename', async (req, res) => {
+  const filename = req.params.filename;
+
+  // 1. Try streaming from MongoDB GridFS if database is connected
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const db = mongoose.connection.db;
+      const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName: 'uploads' });
+      const files = await bucket.find({ filename }).limit(1).toArray();
+
+      if (files.length > 0) {
+        const fileDoc = files[0];
+        if (fileDoc.contentType) {
+          res.set('Content-Type', fileDoc.contentType);
+        }
+        res.set('Cache-Control', 'public, max-age=31536000, immutable');
+        return bucket.openDownloadStreamByName(filename).pipe(res);
+      }
+    } catch (err) {
+      console.warn('GridFS read fallback:', err.message);
+    }
+  }
+
+  // 2. Fall back to local disk (e.g. seeded sample media or offline dev)
+  const localFilePath = path.join(uploadsDir, filename);
+  if (fs.existsSync(localFilePath)) {
+    return res.sendFile(localFilePath);
+  }
+
+  return res.status(404).json({ success: false, message: 'Image not found.' });
+});
+
 app.use('/uploads', express.static(uploadsDir));
 
 // Health check handler - strictly evaluates mongoose.connection.readyState
